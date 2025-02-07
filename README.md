@@ -22,14 +22,6 @@ echo "# LCPU User Manual
    }
    ```
 
-3. **Загрузите устройство**: Используйте метод \`load_devices()\` в классе \`DeviceManager\`, чтобы загрузить устройства из файла конфигурации.
-
-   Пример кода для загрузки устройств:
-
-   ```
-   device_manager = DeviceManager()
-   device_manager.load_devices()
-   ```
 
 ## Система памяти
 
