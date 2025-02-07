@@ -15,10 +15,10 @@ echo "# LCPU User Manual
 
    ```
    {
-       \"0\": \"display.py\",
-       \"1\": \"keyboard.py\",
-       \"2\": \"mouse.py\",
-       \"3\": \"printer.py\"
+       "0": "display.py",
+       "1": "keyboard.py",
+       "2": "mouse.py",
+       "3": "printer.py"
    }
    ```
 
