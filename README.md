@@ -1,4 +1,4 @@
-echo "# LCPU User Manual
+# LCPU User Manual
 
 ## Введение
 
