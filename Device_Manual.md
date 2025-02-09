@@ -70,8 +70,8 @@
 #### `draw(screen)`
 Отрисовывает устройство на экране. Если включён режим отладки, также отображает отладочную информацию.
 
-#### `set_cpu(cpu)`
-Устанавливает ссылку на процессор, чтобы устройство могло взаимодействовать с ним.
+#### `is_running()`
+Возвращает флаги True/False в зависимости от работы процессора.
 
 ---
 
@@ -167,6 +167,304 @@
 
 ---
 
+### Примеры простых устройств для LCPU
+
+В этом разделе приведены примеры простых устройств, которые можно подключить к процессору LCPU. Каждое устройство реализует базовый функционал и может быть расширено в зависимости от задач.
+
+---
+
+## 1. Кнопка (Button)
+
+Устройство `Button` представляет собой кнопку, которая может быть нажата пользователем. При нажатии кнопка отправляет значение `0x01` процессору, а при отпускании — `0x00`.
+
+### Код устройства:
+
+```python
+from api.device import Device
+import pygame
+
+class Button(Device):
+    def __init__(self):
+        super().__init__()
+        
+        # Настройки кнопки
+        self._device_config = {
+            "colors": {
+                "pressed": [50, 255, 50],   # Зелёный при нажатии
+                "released": [255, 50, 50],  # Красный при отпускании
+                "border": [80, 80, 80]      # Цвет рамки
+            },
+            "size": 50,                     # Размер кнопки
+            "border": 2,                    # Толщина рамки
+            "position": {
+                "x": 100,                   # Позиция по X
+                "y": 100                    # Позиция по Y
+            }
+        }
+        
+        self._size = self._device_config["size"]
+        self._surface = pygame.Surface((self._size, self._size), pygame.SRCALPHA)
+        self._rect = pygame.Rect(
+            self._device_config["position"]["x"],
+            self._device_config["position"]["y"],
+            self._size,
+            self._size
+        )
+        self._pressed = False  # Состояние кнопки
+        
+    def IN(self):
+        """Возвращает текущее состояние кнопки"""
+        return 0x01 if self._pressed else 0x00
+        
+    def OUT(self, value):
+        """Кнопка не принимает значения от процессора"""
+        pass
+        
+    def update(self):
+        """Обновление отображения кнопки"""
+        if not self._config:
+            return
+            
+        # Очищаем поверхность
+        self._surface.fill((0, 0, 0, 0))
+        
+        # Рисуем рамку
+        pygame.draw.rect(self._surface, self._config["colors"]["border"], 
+                         (0, 0, self._size, self._size), self._config["border"])
+        
+        # Рисуем основную кнопку
+        color = self._config["colors"]["pressed"] if self._pressed else self._config["colors"]["released"]
+        pygame.draw.rect(self._surface, color, 
+                         (self._config["border"], self._config["border"],
+                          self._size - 2 * self._config["border"], 
+                          self._size - 2 * self._config["border"]))
+        
+    def on_click(self, event):
+        """Обработка клика по кнопке"""
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            self._pressed = True
+            self.push_event("pressed", 0x01)
+        elif event.type == pygame.MOUSEBUTTONUP:
+            self._pressed = False
+            self.push_event("released", 0x00)
+```
+
+### Конфигурация кнопки:
+
+```json
+{
+    "colors": {
+        "pressed": [50, 255, 50],
+        "released": [255, 50, 50],
+        "border": [80, 80, 80]
+    },
+    "size": 50,
+    "border": 2,
+    "position": {
+        "x": 100,
+        "y": 100
+    }
+}
+```
+
+---
+
+## 2. Семисегментный индикатор (SevenSegment)
+
+Устройство `SevenSegment` отображает число от 0 до 9 на семисегментном индикаторе. Оно принимает значение от процессора и отображает его.
+
+### Код устройства:
+
+```python
+from api.device import Device
+import pygame
+
+class SevenSegment(Device):
+    def __init__(self):
+        super().__init__()
+        
+        # Настройки индикатора
+        self._device_config = {
+            "colors": {
+                "on": [255, 50, 50],   # Цвет включённых сегментов
+                "off": [50, 0, 0],     # Цвет выключенных сегментов
+                "border": [80, 80, 80] # Цвет рамки
+            },
+            "size": 30,                # Размер сегментов
+            "position": {
+                "x": 200,              # Позиция по X
+                "y": 100               # Позиция по Y
+            }
+        }
+        
+        self._size = self._device_config["size"]
+        self._surface = pygame.Surface((self._size * 3, self._size * 5), pygame.SRCALPHA)
+        self._rect = pygame.Rect(
+            self._device_config["position"]["x"],
+            self._device_config["position"]["y"],
+            self._size * 3,
+            self._size * 5
+        )
+        self._value = 0  # Текущее значение
+        
+    def IN(self):
+        """Индикатор не возвращает значение процессору"""
+        return 0x00
+        
+    def OUT(self, value):
+        """Устанавливает значение для отображения"""
+        self._value = value % 10  # Ограничиваем значение от 0 до 9
+        
+    def update(self):
+        """Обновление отображения индикатора"""
+        if not self._config:
+            return
+            
+        # Очищаем поверхность
+        self._surface.fill((0, 0, 0, 0))
+        
+        # Сегменты индикатора (a, b, c, d, e, f, g)
+        segments = [
+            (1, 0, 1, 1, 0, 1, 1),  # 0
+            (0, 0, 1, 0, 0, 0, 1),  # 1
+            (1, 1, 1, 0, 1, 0, 1),  # 2
+            (1, 1, 1, 0, 0, 0, 1),  # 3
+            (0, 1, 1, 1, 0, 0, 1),  # 4
+            (1, 1, 0, 1, 0, 0, 1),  # 5
+            (1, 1, 0, 1, 1, 0, 1),  # 6
+            (1, 0, 1, 0, 0, 0, 1),  # 7
+            (1, 1, 1, 1, 1, 0, 1),  # 8
+            (1, 1, 1, 1, 0, 0, 1)   # 9
+        ]
+        
+        # Рисуем сегменты
+        segment_coords = [
+            (1, 0, 1, 0),  # a
+            (2, 1, 0, 1),  # b
+            (2, 3, 0, 1),  # c
+            (1, 4, 1, 0),  # d
+            (0, 3, 0, 1),  # e
+            (0, 1, 0, 1),  # f
+            (1, 2, 1, 0)   # g
+        ]
+        
+        for i, (x, y, w, h) in enumerate(segment_coords):
+            color = self._config["colors"]["on"] if segments[self._value][i] else self._config["colors"]["off"]
+            pygame.draw.rect(self._surface, color, 
+                             (x * self._size, y * self._size, 
+                              w * self._size + self._size, h * self._size + self._size))
+```
+
+### Конфигурация индикатора:
+
+```json
+{
+    "colors": {
+        "on": [255, 50, 50],
+        "off": [50, 0, 0],
+        "border": [80, 80, 80]
+    },
+    "size": 30,
+    "position": {
+        "x": 200,
+        "y": 100
+    }
+}
+```
+
+---
+
+## 3. Зуммер (Buzzer)
+
+Устройство `Buzzer` имитирует звуковой сигнал. При получении значения `0x01` от процессора оно "включается", а при `0x00` — "выключается".
+
+### Код устройства:
+
+```python
+from api.device import Device
+import pygame
+
+class Buzzer(Device):
+    def __init__(self):
+        super().__init__()
+        
+        # Настройки зуммера
+        self._device_config = {
+            "colors": {
+                "on": [255, 50, 50],   # Цвет при включении
+                "off": [50, 0, 0],     # Цвет при выключении
+                "border": [80, 80, 80] # Цвет рамки
+            },
+            "size": 30,                # Размер зуммера
+            "position": {
+                "x": 300,              # Позиция по X
+                "y": 100               # Позиция по Y
+            }
+        }
+        
+        self._size = self._device_config["size"]
+        self._surface = pygame.Surface((self._size, self._size), pygame.SRCALPHA)
+        self._rect = pygame.Rect(
+            self._device_config["position"]["x"],
+            self._device_config["position"]["y"],
+            self._size,
+            self._size
+        )
+        self._active = False  # Состояние зуммера
+        
+    def IN(self):
+        """Зуммер не возвращает значение процессору"""
+        return 0x00
+        
+    def OUT(self, value):
+        """Устанавливает состояние зуммера"""
+        self._active = value != 0
+        
+    def update(self):
+        """Обновление отображения зуммера"""
+        if not self._config:
+            return
+            
+        # Очищаем поверхность
+        self._surface.fill((0, 0, 0, 0))
+        
+        # Рисуем зуммер
+        color = self._config["colors"]["on"] if self._active else self._config["colors"]["off"]
+        pygame.draw.circle(self._surface, color, 
+                           (self._size // 2, self._size // 2), 
+                           self._size // 2)
+        
+        # Рисуем рамку
+        pygame.draw.circle(self._surface, self._config["colors"]["border"], 
+                           (self._size // 2, self._size // 2), 
+                           self._size // 2, 2)
+```
+
+### Конфигурация зуммера:
+
+```json
+{
+    "colors": {
+        "on": [255, 50, 50],
+        "off": [50, 0, 0],
+        "border": [80, 80, 80]
+    },
+    "size": 30,
+    "position": {
+        "x": 300,
+        "y": 100
+    }
+}
+```
+
+---
+
+## Заключение
+
+Эти примеры демонстрируют, как можно создавать простые устройства для процессора LCPU. Каждое устройство реализует базовый функционал и может быть расширено в зависимости от задач.
+
 ## Заключение
 
 Этот документ описывает базовый функционал для создания и подключения устройств к процессору LCPU. Каждое устройство должно быть реализовано как класс, наследующийся от `Device`, и должно поддерживать конфигурацию через JSON-файл. Пример устройства `LED` демонстрирует, как можно реализовать простое устройство с поддержкой всех необходимых методов.
+
+
